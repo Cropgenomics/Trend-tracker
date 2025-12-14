@@ -236,12 +236,19 @@ else: # 라이브 모드
                 st.error("데이터를 찾지 못했습니다. (수동 전환 실패 또는 데이터 없음)")
 
     if st.session_state.crawled_df is not None and not st.session_state.crawled_df.empty:
-        if st.sidebar.button("💾 결과 저장하기"):
-            filename = f"{st.session_state.current_search_keyword}_data.csv"
-            st.session_state.crawled_df.to_csv(filename, index=False, encoding='utf-8-sig')
-            st.sidebar.success(f"'{filename}' 저장 완료!")
-            time.sleep(1)
-            st.rerun()
+        
+        # 1. 데이터프레임을 CSV 문자열로 변환 (한글 깨짐 방지 utf-8-sig)
+        csv_data = st.session_state.crawled_df.to_csv(index=False).encode('utf-8-sig')
+
+        # 2. 저장하기 버튼 대신 '다운로드 버튼' 생성
+        filename = f"{st.session_state.current_search_keyword}_data.csv"
+        
+        st.sidebar.download_button(
+            label="💾 결과 내 컴퓨터로 다운로드",
+            data=csv_data,
+            file_name=filename,
+            mime='text/csv'
+        )
 
 st.sidebar.markdown("---")
 
