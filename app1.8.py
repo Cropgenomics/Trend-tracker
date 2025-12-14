@@ -12,6 +12,8 @@ import os
 # 라이브 크롤링 라이브러리
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+# ### [수정/Modified] Service 모듈 추가 ###
+from selenium.webdriver.chrome.service import Service 
 import chromedriver_autoinstaller
 
 # ---------------------------------------------------------
@@ -69,17 +71,38 @@ def crawl_live_data(keyword):
     status_placeholder = st.empty()
 
     try:
-        chromedriver_autoinstaller.install()
+        # ### [수정/Modified] 드라이버 설정 로직 전체 변경 ###
         options = webdriver.ChromeOptions()
-        # options.add_argument("--headless") 
         
+        # 1. Headless 모드 활성화 (서버 환경 필수)
+        options.add_argument("--headless") 
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        
+        # 2. User-Agent 설정 (봇 탐지 우회)
         options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option("useAutomationExtension", False)
         options.add_argument("--window-size=1920,1080")
 
-        driver = webdriver.Chrome(options=options)
+        # 3. 운영체제(OS)에 따른 드라이버 경로 설정
+        if platform.system() == 'Linux':
+            # Streamlit Cloud (Linux) 환경
+            # packages.txt에 의해 설치된 경로를 지정
+            options.binary_location = "/usr/bin/chromium"
+            service = Service(executable_path="/usr/bin/chromedriver")
+            driver = webdriver.Chrome(service=service, options=options)
+            print("✅ Linux 환경(Streamlit Cloud) 감지: 시스템 드라이버 사용")
+        else:
+            # 로컬(Windows/Mac) 환경
+            # 기존처럼 autoinstaller 사용
+            chromedriver_autoinstaller.install()
+            driver = webdriver.Chrome(options=options)
+            print("✅ 로컬 환경 감지: Autoinstaller 드라이버 사용")
+        
+        # ---------------------------------------------------------
         
         url = f"https://www.mdpi.com/search?q={keyword}" 
         driver.get(url)
@@ -101,19 +124,15 @@ def crawl_live_data(keyword):
         print(f"DEBUG: 'generic-item' 개수: {len(articles)}")
 
         if is_new_version or len(articles) == 0:
-            print("🚨 [수동 개입 필요] 브라우저에서 'click here'를 눌러주세요!")
+            # Headless 모드에서는 '클릭' 유도가 불가능하므로, 바로 다른 태그를 찾거나 대기만 수행
+            print("🚨 구조 변경 감지 또는 로딩 지연. 추가 대기 및 태그 탐색 시도.")
             
-            for i in range(30, 0, -1):
+            for i in range(5, 0, -1):
                 check_articles = driver.find_elements(By.CLASS_NAME, "generic-item")
                 if len(check_articles) > 0:
-                    status_placeholder.success("✅ 구 버전 전환 감지! 즉시 크롤링을 시작합니다.")
-                    print("✅ 전환 감지 성공! 대기 종료.")
-                    time.sleep(1) 
+                    status_placeholder.success("✅ 데이터 로딩 확인!")
                     articles = check_articles
                     break 
-                
-                msg = f"🚨 **[수동 개입 필요]** 브라우저에서 **'click here (Old Version)'**을 눌러주세요! 감지 즉시 시작합니다... ({i}초)"
-                status_placeholder.warning(msg)
                 time.sleep(1)
             
             if len(articles) == 0:
@@ -230,12 +249,10 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("🚫 제외 단어 관리")
 col_add1, col_add2 = st.sidebar.columns([3, 1])
 with col_add1:
-    # [수정] placeholder에 쉼표 예시 추가
     new_stopword = st.text_input("단어 추가 (쉼표로 구분 가능)", placeholder="예: review, analysis, data", label_visibility="collapsed")
 with col_add2:
     if st.button("추가"):
         if new_stopword:
-            # [핵심 수정] 쉼표로 분리하여 여러 단어 한 번에 추가
             new_words = [word.strip().lower() for word in new_stopword.split(',')]
             added_count = 0
             for word in new_words:
