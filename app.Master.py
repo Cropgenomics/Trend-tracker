@@ -244,7 +244,7 @@ else: # 라이브 모드
         filename = f"{st.session_state.current_search_keyword}_data.csv"
         
         st.sidebar.download_button(
-            label="💾 결과 내 컴퓨터로 다운로드",
+            label="💾 결과 컴퓨터로 다운로드",
             data=csv_data,
             file_name=filename,
             mime='text/csv'
